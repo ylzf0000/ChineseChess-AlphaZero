@@ -10,9 +10,9 @@ import pandas as pd
 import gym
 import tensorflow as tf
 
-from RL import boardgame2
-from RL.boardgame2.ChineseChessEnv import board_to_input
-from .boardenv import ChineseChessEnv
+import boardenv
+from boardenv.cchess import board_to_input
+from .boardenv import cchess
 from .boardenv import BLACK, WHITE
 
 # RED = 1  # BLACK
@@ -263,7 +263,7 @@ def self_play(env, agent, return_trajectory=False, verbose=False):
         if verbose:
             print(boardgame2.strfboard(board))
             logging.info('第 {} 步：玩家 {}, 动作 {}'.format(step, player,
-                                                      ChineseChessEnv.labels_mv[action[0]]))
+                                                      cchess.labels_mv[action[0]]))
 
         observation, winner, done, _ = env.step(action)
         if return_trajectory:

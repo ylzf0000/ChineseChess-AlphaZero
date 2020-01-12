@@ -43,17 +43,16 @@ def create_uci_labels():
                     'a7c9', 'c9a7', 'c5e7', 'e7c5', 'e7g9', 'g9e7', 'g5i7', 'i7g5',
                     'a2c0', 'c0a2', 'c4e2', 'e2c4', 'e2g0', 'g0e2', 'g4i2', 'i2g4',
                     'a7c5', 'c5a7', 'c9e7', 'e7c9', 'e7g5', 'g5e7', 'g9i7', 'i7g9']
-    # move = letters[x1] + numbers[y1] + letters[x2] + numbers[y2]
     for x1 in range(9):
         for y1 in range(10):
             dests = [(x2, y1) for x2 in range(9)] + \
-                           [(x1, y2) for y2 in range(10)] + \
-                           [(x1 + a, y1 + b) for (a, b) in
-                            [(-2, -1), (-1, -2), (-2, 1), (1, -2),
-                             (2, -1), (-1, 2), (2, 1), (1, 2)]]  # 马走日
+                    [(x1, y2) for y2 in range(10)] + \
+                    [(x1 + a, y1 + b) for (a, b) in
+                     [(-2, -1), (-1, -2), (-2, 1), (1, -2),
+                      (2, -1), (-1, 2), (2, 1), (1, 2)]]  # 马走日
             for (x2, y2) in dests:
                 if (x1, y1) != (x2, y2) and x2 in range(9) and y2 in range(10):
-                    mv_str = mv_to_str(x1,y1,x2,y2)
+                    mv_str = mv_to_str(x1, y1, x2, y2)
                     dict_mv[mv_str] = len(labels_array)
                     labels_array.append(mv_str)
 
@@ -69,7 +68,7 @@ def create_uci_labels():
 
 
 labels_mv = create_uci_labels()
-print('len_labels_mv: ',len(labels_mv))
+print('len_labels_mv: ', len(labels_mv))
 EMPTY = 0
 BLACK = 1  # 红
 WHITE = -1  # 黑
@@ -121,30 +120,19 @@ ma_check_delta = (((2, 1), (1, 2)), ((-1, 2), (-2, 1)),
 ma_pin_dict = {-2: -1, -1: 0, 1: 0, 2: 1}
 
 
-# jiang_legalmove = {'10', '01', '-10', '0-1'}
-# shi_legalmove = {'11', '-11', '-1-1', '1-1'}
-# xiang_legalmove = {'22', '-22', '-2-2', '2-2'}
-
-
 def is_jiang_legalmove(x1, y1, x2, y2):
     dx, dy = x2 - x1, y2 - y1
     return (dx, dy) in jiang_delta
-    # s = str(dx) + str(dy)
-    # return s in jiang_legalmove
 
 
 def is_shi_legalmove(x1, y1, x2, y2):
     dx, dy = x2 - x1, y2 - y1
     return (dx, dy) in shi_delta
-    # s = str(dx) + str(dy)
-    # return s in shi_legalmove
 
 
 def is_xiang_legalmove(x1, y1, x2, y2):
     dx, dy = x2 - x1, y2 - y1
     return (dx, dy) in xiang_delta
-    # s = str(dx) + str(dy)
-    # return s in xiang_legalmove
 
 
 def ma_pin(x1, y1, x2, y2):
@@ -156,7 +144,6 @@ def ma_pin(x1, y1, x2, y2):
 
 def is_inboard(x, y):
     return 0 <= x <= 8 and 0 <= y <= 9
-    # return x >= 0 and y >= 0 and x <= 8 and y <= 9
 
 
 def is_injiugong(x, y):
@@ -437,23 +424,23 @@ def add_piece(board, x, y, pc):
     board[x][y] = pc
 
 
-def del_piece(board, x, y, pc):
+def del_piece(board, x, y):
     board[x][y] = 0
 
 
 def move_piece(board, x1, y1, x2, y2):
     pc_killed = board[x2][y2]
     if pc_killed != 0:
-        del_piece(board, x2, y2, pc_killed)
+        del_piece(board, x2, y2)
     pc_src = board[x1][y1]
-    del_piece(board, x1, y1, pc_src)
+    del_piece(board, x1, y1)
     add_piece(board, x2, y2, pc_src)
     return pc_killed
 
 
 def undo_move_piece(board, x1, y1, x2, y2, pc_killed):
     pc = board[x2][y2]
-    del_piece(board, x2, y2, pc)
+    del_piece(board, x2, y2)
     add_piece(board, x1, y1, pc)
     if pc_killed != 0:
         add_piece(board, x2, y2, pc_killed)
@@ -491,7 +478,7 @@ def board_to_input(board):
     return input_arr
 
 
-class ChineseChessEnv(BoardGameEnv):
+class CChessEnv(BoardGameEnv):
 
     def __init__(self, board_shape=(9, 10), render_characters='+ox'):
         super().__init__(board_shape=board_shape,
