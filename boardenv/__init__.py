@@ -4,6 +4,7 @@ from .reversi import *
 from .kinarow import *
 from .go import *
 from .version import *
+from .cchess import *
 
 
 register(
@@ -45,5 +46,5 @@ register(
 
 register(
         id='ChineseChess-v0',
-        entry_point='RL.boardenv.ChineseChessEnv:ChineseChessEnv'
+        entry_point='boardenv:CChessEnv'
 )

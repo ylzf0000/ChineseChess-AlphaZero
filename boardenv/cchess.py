@@ -9,9 +9,10 @@ from .env import BoardGameEnv
 
 def strfboard(board):
     s = ''
-    for i in range(9):
-        for j in range(10):
-            s += str(board[i][j]) + ' '
+    for j in range(10):
+        for i in range(9):
+            s += f'{board[j][i]:2d} '
+        s += '\n'
     return s
 
 
@@ -68,7 +69,20 @@ def create_uci_labels():
 
 
 labels_mv = create_uci_labels()
-print('len_labels_mv: ', len(labels_mv))
+
+
+def mv2str(mv):
+    s = labels_mv[mv]
+    s = '%s%s%s%s' % (s[0],
+                      str(9 - int(s[1])),
+                      s[2],
+                      str(9 - int(s[3])))
+    # s[1] = str(9 - int(s[1]))
+    # s[3] = str(9 - int(s[3]))
+    return s
+
+
+# print('len_labels_mv: ', len(labels_mv))
 EMPTY = 0
 BLACK = 1  # 红
 WHITE = -1  # 黑
@@ -91,7 +105,7 @@ init_board = np.array(
      [14, 0, 14, 0, 14, 0, 14, 0, 14],
      [0, 13, 0, 0, 0, 0, 0, 13, 0],
      [0, 0, 0, 0, 0, 0, 0, 0, 0],
-     [12, 11, 10, 9, 8, 9, 10, 11, 12]]).T
+     [12, 11, 10, 9, 8, 9, 10, 11, 12]])
 
 arr_injiugong = np.array([
     [0, 0, 0, 1, 1, 1, 0, 0, 0],
@@ -103,8 +117,9 @@ arr_injiugong = np.array([
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 1, 1, 1, 0, 0, 0],
     [0, 0, 0, 1, 1, 1, 0, 0, 0],
-    [0, 0, 0, 1, 1, 1, 0, 0, 0]]).T
+    [0, 0, 0, 1, 1, 1, 0, 0, 0]])
 
+# (x, y)
 jiang_delta = ((1, 0), (0, 1), (-1, 0), (0, -1))
 shi_delta = ((1, 1), (-1, 1), (-1, -1), (1, -1))
 xiang_delta = ((2, 2), (-2, 2), (-2, -2), (2, -2))
@@ -147,7 +162,7 @@ def is_inboard(x, y):
 
 
 def is_injiugong(x, y):
-    return is_inboard(x, y) and arr_injiugong[x][y] == 1
+    return is_inboard(x, y) and arr_injiugong[y][x] == 1
 
 
 def flip_x(x):
@@ -208,7 +223,7 @@ def gen_moves(board, player):
     self_tag, opp_tag = side_tag(player), opp_side_tag(player)
     for x in range(9):
         for y in range(10):
-            pc = board[x][y]
+            pc = board[y][x]
             if pc & self_tag == 0:
                 continue
             piece = pc - self_tag
@@ -217,7 +232,7 @@ def gen_moves(board, player):
                     dst_x, dst_y = x + jiang_delta[i][0], y + jiang_delta[i][1]
                     if not is_injiugong(dst_x, dst_y):
                         continue
-                    pc_dst = board[dst_x][dst_y]
+                    pc_dst = board[dst_y][dst_x]
                     if pc_dst & self_tag == 0:
                         mvs.append((x, y, dst_x, dst_y))
             elif piece == PIECE_SHI:
@@ -225,7 +240,7 @@ def gen_moves(board, player):
                     dst_x, dst_y = x + shi_delta[i][0], y + shi_delta[i][1]
                     if not is_injiugong(dst_x, dst_y):
                         continue
-                    pc_dst = board[dst_x][dst_y]
+                    pc_dst = board[dst_y][dst_x]
                     if pc_dst & self_tag == 0:
                         mvs.append((x, y, dst_x, dst_y))
             elif piece == PIECE_XIANG:
@@ -234,30 +249,30 @@ def gen_moves(board, player):
                     dst_x, dst_y = x + shi_delta[i][0], y + shi_delta[i][1]
                     if not (is_inboard(dst_x, dst_y) and
                             is_self_half(dst_y, player)
-                            and board[dst_x][dst_y] == 0):
+                            and board[dst_y][dst_x] == 0):
                         continue
                     dst_x += shi_delta[i][0]
                     dst_y += shi_delta[i][1]
-                    pc_dst = board[dst_x][dst_y]
+                    pc_dst = board[dst_y][dst_x]
                     if pc_dst & self_tag == 0:
                         mvs.append((x, y, dst_x, dst_y))
             elif piece == PIECE_MA:
                 for i in range(4):
                     pin_x, pin_y = x + jiang_delta[i][0], y + jiang_delta[i][1]
-                    if not is_inboard(pin_x, pin_y) or board[pin_x][pin_y] != 0:
+                    if not is_inboard(pin_x, pin_y) or board[pin_y][pin_x] != 0:
                         continue
                     for j in range(2):
                         dst_x, dst_y = x + ma_delta[i][j][0], y + ma_delta[i][j][1]
                         if not is_inboard(dst_x, dst_y):
                             continue
-                        pc_dst = board[dst_x][dst_y]
+                        pc_dst = board[dst_y][dst_x]
                         if pc_dst & self_tag == 0:
                             mvs.append((x, y, dst_x, dst_y))
             elif piece == PIECE_JU:
                 for i in range(4):
                     dst_x, dst_y = x + jiang_delta[i][0], y + jiang_delta[i][1]
                     while is_inboard(dst_x, dst_y):
-                        pc_dst = board[dst_x][dst_y]
+                        pc_dst = board[dst_y][dst_x]
                         if pc_dst == 0:
                             mvs.append((x, y, dst_x, dst_y))
                         else:
@@ -270,7 +285,7 @@ def gen_moves(board, player):
                 for i in range(4):
                     dst_x, dst_y = x + jiang_delta[i][0], y + jiang_delta[i][1]
                     while is_inboard(dst_x, dst_y):
-                        pc_dst = board[dst_x][dst_y]
+                        pc_dst = board[dst_y][dst_x]
                         if pc_dst == 0:
                             mvs.append((x, y, dst_x, dst_y))
                         else:
@@ -280,7 +295,7 @@ def gen_moves(board, player):
                     dst_x += jiang_delta[i][0]
                     dst_y += jiang_delta[i][1]
                     while is_inboard(dst_x, dst_y):
-                        pc_dst = board[dst_x][dst_y]
+                        pc_dst = board[dst_y][dst_x]
                         if pc_dst != 0:
                             if (pc_dst & opp_tag) != 0:
                                 mvs.append((x, y, dst_x, dst_y))
@@ -290,14 +305,14 @@ def gen_moves(board, player):
             elif PIECE_BING:
                 dst_x, dst_y = x, sq_forward(y, player)
                 if is_inboard(dst_x, dst_y):
-                    pc_dst = board[dst_x][dst_y]
+                    pc_dst = board[dst_y][dst_x]
                     if pc_dst & self_tag == 0:
                         mvs.append((x, y, dst_x, dst_y))
                 if is_away_half(y, player):
                     for i in (-1, 1):
                         dst_x, dst_y = x + i, y
                         if is_inboard(dst_x, dst_y):
-                            pc_dst = board[dst_x][dst_y]
+                            pc_dst = board[dst_y][dst_x]
                             if pc_dst & self_tag == 0:
                                 mvs.append((x, y, dst_x, dst_y))
     return np.array(mvs)
@@ -309,11 +324,11 @@ def is_legalmove(board, x1, y1, x2, y2, player):
     if not is_inboard(x1, y1) or not is_inboard(x2, y2):
         return False
     self_tag = side_tag(player)
-    pc_src = board[x1][y1]
+    pc_src = board[y1][x1]
     if (pc_src & self_tag) == 0:
         return False
     # 2.
-    pc_dst = board[x2][y2]
+    pc_dst = board[y2][x2]
     if pc_dst & self_tag != 0:
         return False
     # 3.
@@ -325,10 +340,10 @@ def is_legalmove(board, x1, y1, x2, y2, player):
     elif piece == PIECE_XIANG:
         pin_x, pin_y = xiang_pin(x1, y1, x2, y2)
         return is_same_half(y1, y2) and is_xiang_legalmove(x1, y1, x2, y2) \
-               and board[pin_x][pin_y] == 0
+               and board[pin_y][pin_x] == 0
     elif piece == PIECE_MA:
         pin_x, pin_y = ma_pin(x1, y1, x2, y2)
-        return pin_x != x1 and pin_y != y1 and board[pin_x][pin_y] == 0
+        return (pin_x != x1 or pin_y != y1) and board[pin_y][pin_x] == 0
     elif piece == PIECE_JU or piece == PIECE_PAO:
         dx, dy = 0, 0
         if y1 == y2:
@@ -338,7 +353,7 @@ def is_legalmove(board, x1, y1, x2, y2, player):
         else:
             return False
         pin_x, pin_y = x1 + dx, y1 + dy
-        while pin_x != x2 and pin_y != y2 and board[pin_x][pin_y] == 0:
+        while (pin_x != x2 or pin_y != y2) and board[pin_y][pin_x] == 0:
             pin_x += dx
             pin_y += dy
         if pin_x == x2 and pin_y == y2:
@@ -346,7 +361,7 @@ def is_legalmove(board, x1, y1, x2, y2, player):
         elif (pc_dst != 0) and (pc_src - self_tag == PIECE_PAO):
             pin_x += dx
             pin_y += dy
-            while pin_x != x2 and pin_y != y2 and board[pin_x][pin_y] == 0:
+            while (pin_x != x2 or pin_y != y2) and board[pin_y][pin_x] == 0:
                 pin_x += dx
                 pin_y += dy
             return pin_x == x2 and pin_y == y2
@@ -368,7 +383,7 @@ def is_checked(board, player):
     ok = False
     for src_x in range(9):
         for src_y in range(10):
-            if board[src_x][src_y] == self_tag + PIECE_JIANG:
+            if board[src_y][src_x] == self_tag + PIECE_JIANG:
                 ok = True
                 break
         if ok:
@@ -377,29 +392,29 @@ def is_checked(board, player):
         return False
     # 1.Bing
     x, y = src_x, sq_forward(src_y, player)
-    if is_inboard(x, y) and board[x][y] == opp_tag + PIECE_BING:
+    if is_inboard(x, y) and board[y][x] == opp_tag + PIECE_BING:
         return True
     for dx in (-1, 1):
         x, y = src_x + dx, src_y
-        if is_inboard(x, y) and board[x][y] == opp_tag + PIECE_BING:
+        if is_inboard(x, y) and board[y][x] == opp_tag + PIECE_BING:
             return True
     # 2.Ma
     for i in range(4):
         x, y = src_x + shi_delta[i][0], src_y + shi_delta[i][1]
         if (not is_inboard(x, y)) or \
-                (is_inboard(x, y) and board[x][y] != 0):
+                (is_inboard(x, y) and board[y][x] != 0):
             continue
         for j in range(2):
             x = src_x + ma_check_delta[i][j][0]
             y = src_y + ma_check_delta[i][j][1]
-            if is_inboard(x, y) and board[x][y] == opp_tag + PIECE_MA:
+            if is_inboard(x, y) and board[y][x] == opp_tag + PIECE_MA:
                 return True
     # 3.Ju Pao Jiang
     for i in range(4):
         dx, dy = jiang_delta[i][0], jiang_delta[i][1]
         dst_x, dst_y = src_x + dx, src_y + dy
         while is_inboard(dst_x, dst_y):
-            pc_dst = board[dst_x][dst_y]
+            pc_dst = board[dst_y][dst_x]
             if pc_dst != 0:
                 if pc_dst == opp_tag + PIECE_JIANG or \
                         pc_dst == opp_tag + PIECE_JU:
@@ -410,7 +425,7 @@ def is_checked(board, player):
         dst_x += dx
         dst_y += dy
         while is_inboard(dst_x, dst_y):
-            pc_dst = board[dst_x][dst_y]
+            pc_dst = board[dst_y][dst_x]
             if pc_dst != 0:
                 if pc_dst == opp_tag + PIECE_PAO:
                     return True
@@ -421,25 +436,25 @@ def is_checked(board, player):
 
 
 def add_piece(board, x, y, pc):
-    board[x][y] = pc
+    board[y][x] = pc
 
 
 def del_piece(board, x, y):
-    board[x][y] = 0
+    board[y][x] = 0
 
 
 def move_piece(board, x1, y1, x2, y2):
-    pc_killed = board[x2][y2]
+    pc_killed = board[y2][x2]
     if pc_killed != 0:
         del_piece(board, x2, y2)
-    pc_src = board[x1][y1]
+    pc_src = board[y1][x1]
     del_piece(board, x1, y1)
     add_piece(board, x2, y2, pc_src)
     return pc_killed
 
 
 def undo_move_piece(board, x1, y1, x2, y2, pc_killed):
-    pc = board[x2][y2]
+    pc = board[y2][x2]
     del_piece(board, x2, y2)
     add_piece(board, x1, y1, pc)
     if pc_killed != 0:
@@ -462,25 +477,25 @@ def is_jiang_exist(board, player):
     self_tag = side_tag(player)
     for x in range(9):
         for y in range(10):
-            if board[x][y] == self_tag + PIECE_JIANG:
+            if board[y][x] == self_tag + PIECE_JIANG:
                 return True
     return False
 
 
 def board_to_input(board):
-    input_arr = np.zeros(shape=(9, 10, 14))
+    input_arr = np.zeros(shape=(10, 9, 14))
     for i in range(9):
         for j in range(10):
-            if board[i][j] != 0:
-                n = board[i][j] - 16 + 7 \
-                    if board[i][j] >= 16 else board[i][j] - 8
-                input_arr[i][j][n] = 1
+            if board[j][i] != 0:
+                n = board[j][i] - 16 + 7 \
+                    if board[j][i] >= 16 else board[j][i] - 8
+                input_arr[j][i][n] = 1
     return input_arr
 
 
 class CChessEnv(BoardGameEnv):
 
-    def __init__(self, board_shape=(9, 10), render_characters='+ox'):
+    def __init__(self, board_shape=(10, 9), render_characters='+ox'):
         super().__init__(board_shape=board_shape,
                          illegal_action_mode='pass', render_characters=render_characters,
                          allow_pass=False)
@@ -495,8 +510,8 @@ class CChessEnv(BoardGameEnv):
     def is_valid(self, state, action):
         # print(sys._getframe().f_code.co_name)
         board, player = state
-        x1, x2, y1, y2 = str_to_mv(labels_mv[action[0]])
-        return is_legalmove(board, x1, x2, y1, y2, player)
+        x1, y1, x2, y2 = str_to_mv(labels_mv[action[0]])
+        return is_legalmove(board, x1, y1, x2, y2, player)
 
     def get_valid(self, state):
         # print(sys._getframe().f_code.co_name)
@@ -529,7 +544,7 @@ class CChessEnv(BoardGameEnv):
         # print(sys._getframe().f_code.co_name)
         board, player = state
         board = copy.deepcopy(board)
-        x1, x2, y1, y2 = str_to_mv(labels_mv[action[0]])
-        move_piece(board, x1, x2, y1, y2)
-        self.depth += 1
+        x1, y1, x2, y2 = str_to_mv(labels_mv[action[0]])
+        move_piece(board, x1, y1, x2, y2)
+        # self.depth += 1
         return board, -player

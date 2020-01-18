@@ -3,8 +3,8 @@ import math
 import itertools
 import collections
 import logging
-
-import keras
+from tensorflow import keras
+# import keras
 import numpy as np
 import pandas as pd
 import gym
@@ -12,8 +12,8 @@ import tensorflow as tf
 
 import boardenv
 from boardenv.cchess import board_to_input
-from .boardenv import cchess
-from .boardenv import BLACK, WHITE
+from boardenv import cchess
+from boardenv import BLACK, WHITE
 
 # RED = 1  # BLACK
 # BLACK = -1  # WHITE
@@ -65,7 +65,7 @@ class AlphaZeroAgent:
                       learning_rate=0.001, regularizer=keras.regularizers.l2(1e-4)):
         print(sys._getframe().f_code.co_name)
         # 公共部分
-        inputs = keras.Input(shape=(9, 10, 14))
+        inputs = keras.Input(shape=(10, 9, 14))
         x = inputs
         # inputs = keras.Input(shape=(9, 10, 14))
         # x = keras.layers.Reshape((9, 10, 14))(inputs)
@@ -148,7 +148,7 @@ class AlphaZeroAgent:
         # 计算策略
         board, player = observation
         canonical_board = np.array(board)
-        s = boardgame2.strfboard(canonical_board)
+        s = boardenv.strfboard(canonical_board)
         if self.count[s][0] == 0:
             self.count[s][0] = 1
         while self.count[s].sum() < self.sim_count:  # 多次 MCTS 搜索
@@ -182,7 +182,7 @@ class AlphaZeroAgent:
             print('vs_shape:', vs.shape)
 
             canonical_boards = np.array([board_to_input(board) for board in boards])
-            print('canonical_boards:',canonical_boards.shape)
+            print('canonical_boards:', canonical_boards.shape)
             self.net.fit(canonical_boards, [probs, vs], verbose=0)  # 训练
             # self.net.fit(canonical_boards, [probs, vs], verbose=0)  # 训练
         self.reset_mcts()
@@ -191,7 +191,7 @@ class AlphaZeroAgent:
         # print(sys._getframe().f_code.co_name, self.step)
         # if self.step == 1:
         #     print('?')
-        s = boardgame2.strfboard(board)
+        s = boardenv.strfboard(board)
         if s not in self.winner:
             self.winner[s] = self.env.get_winner((board, player))  # 计算赢家
             # self.winner[s] = self.env.get_winner((board, BLACK))  # 计算赢家
@@ -261,16 +261,16 @@ def self_play(env, agent, return_trajectory=False, verbose=False):
         board, player = observation
         action, prob = agent.decide(observation, return_prob=True)
         if verbose:
-            print(boardgame2.strfboard(board))
+            print(boardenv.strfboard(board))
             logging.info('第 {} 步：玩家 {}, 动作 {}'.format(step, player,
-                                                      cchess.labels_mv[action[0]]))
-
+                                                      cchess.mv2str(action[0])))
+            # cchess.labels_mv[action[0]]
         observation, winner, done, _ = env.step(action)
         if return_trajectory:
             trajectory.append((player, board, prob))
         if done:
             if verbose:
-                print(boardgame2.strfboard(observation[0]))
+                print(boardenv.strfboard(observation[0]))
                 logging.info('赢家 {}'.format(winner))
             break
     if return_trajectory:

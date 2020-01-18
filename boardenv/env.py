@@ -12,12 +12,12 @@ EMPTY = 0
 BLACK = 1
 WHITE = -1
 
-def strfboard(board):
-    s = ''
-    for i in range(9):
-        for j in range(10):
-            s += str(board[i][j]) + ' '
-    return s
+# def strfboard(board):
+#     s = ''
+#     for i in range(9):
+#         for j in range(10):
+#             s += str(board[i][j]) + ' '
+#     return s
 
 # def strfboard(board, render_characters='+ox', end='\n'):
 #     """
@@ -272,6 +272,7 @@ class BoardGameEnv(gym.Env):
         info : {'valid' : np.array}    a dict shows the valid place for the next player
         """
         if not self.is_valid(state, action):
+            print(f'非法的走棋:{action}')
             action = self.illegal_equivalent_action
         if np.array_equal(action, self.RESIGN):
             return state, -state[1], True, {}
