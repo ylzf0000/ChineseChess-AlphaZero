@@ -272,7 +272,7 @@ class BoardGameEnv(gym.Env):
         info : {'valid' : np.array}    a dict shows the valid place for the next player
         """
         if not self.is_valid(state, action):
-            print(f'非法的走棋:{action}')
+            # print(f'非法的走棋:{action}')
             action = self.illegal_equivalent_action
         if np.array_equal(action, self.RESIGN):
             return state, -state[1], True, {}
@@ -312,8 +312,8 @@ class BoardGameEnv(gym.Env):
         """
         See gym.Env.render().
         """
-        outfile = StringIO() if mode == 'ansi' else sys.stdout
-        s = strfboard(self.board, self.render_characters)
-        outfile.write(s)
-        if mode != 'human':
-            return outfile
+        # outfile = StringIO() if mode == 'ansi' else sys.stdout
+        # s = strfboard(self.board, self.render_characters)
+        # outfile.write(s)
+        # if mode != 'human':
+        #     return outfile

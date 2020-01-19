@@ -1,3 +1,4 @@
+import os
 import sys
 import math
 import itertools
@@ -11,7 +12,7 @@ import gym
 import tensorflow as tf
 
 import boardenv
-from boardenv.cchess import board_to_input
+from boardenv.cchess import board_to_net_input
 from boardenv import cchess
 from boardenv import BLACK, WHITE
 
@@ -54,7 +55,11 @@ class AlphaZeroAgent:
         self.batches = batches
         self.batch_size = batch_size
 
-        self.net = self.build_network(**kwargs)
+        self.model_filename = './cchess_model.h5'
+        if os.path.isfile(self.model_filename):
+            self.net = keras.models.load_model(self.model_filename)
+        else:
+            self.net = self.build_network(**kwargs)
         self.reset_mcts()
         self.sim_count = sim_count  # MCTS 次数
         self.c_init = c_init  # PUCT 系数
@@ -65,7 +70,7 @@ class AlphaZeroAgent:
                       learning_rate=0.001, regularizer=keras.regularizers.l2(1e-4)):
         print(sys._getframe().f_code.co_name)
         # 公共部分
-        inputs = keras.Input(shape=(10, 9, 14))
+        inputs = keras.Input(shape=(10, 9, 15))
         x = inputs
         # inputs = keras.Input(shape=(9, 10, 14))
         # x = keras.layers.Reshape((9, 10, 14))(inputs)
@@ -180,8 +185,10 @@ class AlphaZeroAgent:
             # canonical_boards = boards[:,np.newaxis]
             vs = (players * winners)[:, np.newaxis]
             print('vs_shape:', vs.shape)
-
-            canonical_boards = np.array([board_to_input(board) for board in boards])
+            inputs = []
+            for i in range(len(boards)):
+                inputs.append((boards[i], players[i]))
+            canonical_boards = np.array([board_to_net_input(input[0], input[1]) for input in inputs])
             print('canonical_boards:', canonical_boards.shape)
             self.net.fit(canonical_boards, [probs, vs], verbose=0)  # 训练
             # self.net.fit(canonical_boards, [probs, vs], verbose=0)  # 训练
@@ -201,7 +208,7 @@ class AlphaZeroAgent:
             return 0
         if s not in self.policy:  # 未计算过策略的叶子节点
             # pis, vs = self.net.predict(board[np.newaxis])
-            pis, vs = self.net.predict(board_to_input(board)[np.newaxis])
+            pis, vs = self.net.predict(board_to_net_input(board, player)[np.newaxis])
             pi, v = pis[0], vs[0]
             valid = self.env.get_valid((board, player))
             # valid = self.env.get_valid((board, BLACK))
@@ -261,16 +268,16 @@ def self_play(env, agent, return_trajectory=False, verbose=False):
         board, player = observation
         action, prob = agent.decide(observation, return_prob=True)
         if verbose:
-            print(boardenv.strfboard(board))
+            env.render()
             logging.info('第 {} 步：玩家 {}, 动作 {}'.format(step, player,
-                                                      cchess.mv2str(action[0])))
-            # cchess.labels_mv[action[0]]
+                                                      cchess.labels_mv[action[0]]))
         observation, winner, done, _ = env.step(action)
         if return_trajectory:
             trajectory.append((player, board, prob))
         if done:
             if verbose:
-                print(boardenv.strfboard(observation[0]))
+                env.render()
+                # print(boardenv.strfboard(observation[0]))
                 logging.info('赢家 {}'.format(winner))
             break
     if return_trajectory:
@@ -284,25 +291,25 @@ def self_play(env, agent, return_trajectory=False, verbose=False):
 
 def train():
     print(sys._getframe().f_code.co_name)
-    # train_iterations = 700000  # 训练迭代次数
-    # train_episodes_per_iteration = 5000  # 每次迭代自我对弈回合数
-    # batches = 10  # 每回合进行几次批学习
-    # batch_size = 4096  # 批学习的批大小
-    # sim_count = 100  # MCTS需要的计数
-    # net_kwargs = {}
-    # net_kwargs['conv_filters'] = [256, ]
-    # net_kwargs['residual_filters'] = [[256, 256], ]
-    # net_kwargs['policy_filters'] = [256, ]
-
-    train_iterations = 100
-    train_episodes_per_iteration = 100
-    batches = 2
-    batch_size = 64
-    sim_count = 200
+    train_iterations = 700000  # 训练迭代次数
+    train_episodes_per_iteration = 5000  # 每次迭代自我对弈回合数
+    batches = 10  # 每回合进行几次批学习
+    batch_size = 4096  # 批学习的批大小
+    sim_count = 100  # MCTS需要的计数
     net_kwargs = {}
     net_kwargs['conv_filters'] = [256, ]
     net_kwargs['residual_filters'] = [[256, 256], ]
     net_kwargs['policy_filters'] = [256, ]
+
+    # train_iterations = 100
+    # train_episodes_per_iteration = 100
+    # batches = 2
+    # batch_size = 64
+    # sim_count = 200
+    # net_kwargs = {}
+    # net_kwargs['conv_filters'] = [256, ]
+    # net_kwargs['residual_filters'] = [[256, 256], ]
+    # net_kwargs['policy_filters'] = [256, ]
 
     agent = AlphaZeroAgent(env=env, kwargs=net_kwargs, sim_count=sim_count,
                            batches=batches, batch_size=batch_size)
@@ -319,6 +326,7 @@ def train():
 
         # 利用经验进行学习
         agent.learn(dfs_trajectory)
+        keras.models.save_model(agent.net, agent.model_filename)
         logging.info('训练 {}: 学习完成'.format(iteration))
 
         # 演示训练结果

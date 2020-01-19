@@ -6,21 +6,16 @@ import numpy as np
 
 from .env import BoardGameEnv
 
-
-def strfboard(board):
-    s = ''
-    for j in range(10):
-        for i in range(9):
-            s += f'{board[j][i]:2d} '
-        s += '\n'
-    return s
-
-
 letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
 dict_letters = {'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4, 'f': 5, 'g': 6, 'h': 7, 'i': 8, }
-numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-dict_numbers = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4,
-                '5': 5, '6': 6, '7': 7, '8': 8, '9': 9}
+# numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+numbers = ['9', '8', '7', '6', '5', '4', '3', '2', '1', '0']
+dict_numbers = {'0': 9, '1': 8, '2': 7, '3': 6, '4': 5,
+                '5': 4, '6': 3, '7': 2, '8': 1, '9': 0}
+
+
+# dict_numbers = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4,
+#                 '5': 5, '6': 6, '7': 7, '8': 8, '9': 9}
 
 
 def mv_to_str(x1, y1, x2, y2):
@@ -70,18 +65,6 @@ def create_uci_labels():
 
 labels_mv = create_uci_labels()
 
-
-def mv2str(mv):
-    s = labels_mv[mv]
-    s = '%s%s%s%s' % (s[0],
-                      str(9 - int(s[1])),
-                      s[2],
-                      str(9 - int(s[3])))
-    # s[1] = str(9 - int(s[1]))
-    # s[3] = str(9 - int(s[3]))
-    return s
-
-
 # print('len_labels_mv: ', len(labels_mv))
 EMPTY = 0
 BLACK = 1  # 红
@@ -94,6 +77,16 @@ PIECE_MA = 3
 PIECE_JU = 4
 PIECE_PAO = 5
 PIECE_BING = 6
+
+
+def strfboard(board):
+    # s = ''
+    # for j in range(10):
+    #     for i in range(9):
+    #         p = board[j][i]
+    return ''.join([str(p) for row in board for p in row])
+    # return s
+
 
 init_board = np.array(
     [[20, 19, 18, 17, 16, 17, 18, 19, 20],
@@ -345,6 +338,8 @@ def is_legalmove(board, x1, y1, x2, y2, player):
         pin_x, pin_y = ma_pin(x1, y1, x2, y2)
         return (pin_x != x1 or pin_y != y1) and board[pin_y][pin_x] == 0
     elif piece == PIECE_JU or piece == PIECE_PAO:
+        # if piece == PIECE_JU:
+        #     print('JU!')
         dx, dy = 0, 0
         if y1 == y2:
             dx = -1 if x2 < x1 else 1
@@ -482,14 +477,19 @@ def is_jiang_exist(board, player):
     return False
 
 
-def board_to_input(board):
-    input_arr = np.zeros(shape=(10, 9, 14))
-    for i in range(9):
-        for j in range(10):
+def board_to_net_input(board, player):
+    input_arr = np.zeros(shape=(10, 9, 15))
+    for j in range(10):
+        for i in range(9):
             if board[j][i] != 0:
                 n = board[j][i] - 16 + 7 \
                     if board[j][i] >= 16 else board[j][i] - 8
                 input_arr[j][i][n] = 1
+    # 红方的[:][:][14]=0，黑方=1
+    if player == WHITE:
+        for j in range(10):
+            for i in range(9):
+                input_arr[j][i][14] = 1
     return input_arr
 
 
@@ -511,7 +511,11 @@ class CChessEnv(BoardGameEnv):
         # print(sys._getframe().f_code.co_name)
         board, player = state
         x1, y1, x2, y2 = str_to_mv(labels_mv[action[0]])
-        return is_legalmove(board, x1, y1, x2, y2, player)
+        legal = is_legalmove(board, x1, y1, x2, y2, player)
+        # if not legal:
+        #     print(f'player: {player}, action: {labels_mv[action[0]]}')
+        # return True
+        return legal
 
     def get_valid(self, state):
         # print(sys._getframe().f_code.co_name)
@@ -548,3 +552,28 @@ class CChessEnv(BoardGameEnv):
         move_piece(board, x1, y1, x2, y2)
         # self.depth += 1
         return board, -player
+
+    def render(self, mode='human'):
+        s = ''
+        redf = '\033[1;31m%s\033[0m　'
+        blackf = '\033[1;37m%s\033[0m　'
+        piecestr_list = ['将', '士', '象', '马', '车', '炮', '兵']
+        xlist = "\033[1m　　ａ　ｂ　ｃ　ｄ　ｅ　ｆ　ｇ　ｈ　ｉ\033[0m"
+        ylist = "９８７６５４３２１０"
+        s += f'{xlist}\n'
+        for j in range(10):
+            s += f'{ylist[j]}　'
+            for i in range(9):
+                p = self.board[j][i]
+                if p == 0:
+                    s += '\033[1m０\033[0m　'
+                else:
+                    f = blackf if p >= 16 else redf
+                    s += f % (piecestr_list[p - 16] if p >= 16
+                              else piecestr_list[p - 8])
+            s += ylist[j]
+            s += '\n'
+            if j == 4:
+                s += '　——————————————————————————————————\n'
+        s += f'{xlist}\n'
+        print(s)
