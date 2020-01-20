@@ -202,12 +202,20 @@ def opp_side_tag(player):
     return 16 if player == BLACK else 8
 
 
-def is_self_chess(pc, player):
+def is_self_piece(pc, player):
     return (side_tag(player) & pc) != 0
 
 
-def is_opp_chess(pc, player):
+def is_self_piece_by_tag(pc, tag):
+    return (tag & pc) != 0
+
+
+def is_opp_piece(pc, player):
     return (opp_side_tag(player) & pc) != 0
+
+
+def is_opp_piece_by_tag(pc, tag):
+    return (tag & pc) != 0
 
 
 def gen_moves(board, player):
@@ -495,11 +503,13 @@ def board_to_net_input(board, player):
 
 class CChessEnv(BoardGameEnv):
     MAX_DEPTH = 500
+    BOARD_SHAPE = (10, 9)
 
     def __init__(self, board_shape=(10, 9), render_characters='+ox'):
         super().__init__(board_shape=board_shape,
                          illegal_action_mode='pass', render_characters=render_characters,
                          allow_pass=False)
+        self.reset()
 
     def reset(self):
         self.board = init_board
@@ -507,6 +517,7 @@ class CChessEnv(BoardGameEnv):
         self.depth = 0
         return self.board, self.player, self.depth
 
+    # action是一个(1~2086)的列表
     def is_valid(self, state, action):
         board, player, _ = state
         x1, y1, x2, y2 = str_to_mv(labels_mv[action[0]])

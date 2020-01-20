@@ -10,10 +10,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         super(MainWindow, self).__init__(parent)
         self.setupUi(self)
         self.setWindowTitle('中国象棋')
-
         # self.labelImg.setText('')
         # self.labelImg.resize(self.boardJpg.width(), self.boardJpg.height())
         # self.labelImg.setPixmap(self.boardJpg)
-
-
-

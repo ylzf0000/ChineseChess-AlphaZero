@@ -5,6 +5,8 @@ import itertools
 import collections
 import time
 import logging
+
+
 from tensorflow import keras
 import numpy as np
 import pandas as pd
@@ -159,15 +161,16 @@ class AlphaZeroAgent:
         s = boardenv.strfboard(canonical_board)
         if self.count[s][0] == 0:
             self.count[s][0] = 1
+        v = []
         while self.count[s].sum() < self.sim_count:  # 多次 MCTS 搜索
             if s in self.winner and self.winner[s] is not None:
                 break
             # print('count_sum:', self.count[s].sum())
-            self.search(canonical_board, player, depth, prior_noise=True)
+            v = self.search(canonical_board, player, depth, prior_noise=True)
         sum = self.count[s].sum()
         # sum = sum if sum >= 1 else 1
         prob = self.count[s] / sum
-
+        print(v)
         # 采样
         location_index = np.random.choice(prob.size, p=prob.reshape(-1))
         location = np.unravel_index(location_index, prob.shape)
@@ -245,7 +248,7 @@ class AlphaZeroAgent:
             (board, player, depth), np.array(location))
         # next_canonical_board = next_player * next_board
         next_canonical_board = np.array(next_board)
-        next_v = self.search(next_canonical_board, -player, depth + 1)  # 递归搜索
+        next_v = self.search(next_canonical_board, next_player, next_depth)  # 递归搜索
         v = next_player * next_v
         self.count[s][location] += 1
         self.q[s][location] += (v - self.q[s][location]) / \
@@ -285,39 +288,65 @@ def self_play(env, agent, return_trajectory=False, verbose=False):
         return winner
 
 
-def train():
-    print(sys._getframe().f_code.co_name)
-    """
-    AlphaZero 参数，可用来求解比较大型的问题（如五子棋）
-    """
-    train_iterations = 700000  # 训练迭代次数
-    train_episodes_per_iteration = 5000  # 每次迭代自我对弈回合数
-    batches = 10  # 每回合进行几次批学习
-    batch_size = 4096  # 批学习的批大小
-    sim_count = 800  # MCTS需要的计数
+def train_args(scale):
+    train_iterations = 0
+    train_episodes_per_iteration = 0
+    batches = 0
+    batch_size = 0
+    if scale == 'big':
+        """
+        AlphaZero 参数，可用来求解比较大型的问题（如五子棋）
+        """
+        train_iterations = 700000  # 训练迭代次数
+        train_episodes_per_iteration = 5000  # 每次迭代自我对弈回合数
+        batches = 10  # 每回合进行几次批学习
+        batch_size = 4096  # 批学习的批大小
+    elif scale == 'small':
+        """
+        小规模参数，用来初步求解比较小的问题（如井字棋）
+        """
+        train_iterations = 100
+        train_episodes_per_iteration = 100
+        batches = 2
+        batch_size = 64
+    return train_iterations, train_episodes_per_iteration, batches, batch_size
+
+
+def net_args(scale):
+    sim_count = 0
     net_kwargs = {}
-    net_kwargs['conv_filters'] = [256, ]
-    net_kwargs['residual_filters'] = [[256, 256], ] * 19
-    net_kwargs['policy_filters'] = [256, ]
-    net_scale = 'big'
+    net_scale = ''
+    if scale == 'big':
+        """
+        AlphaZero 参数，可用来求解比较大型的问题（如五子棋）
+        """
+        sim_count = 800  # MCTS需要的计数
+        net_kwargs = {}
+        net_kwargs['conv_filters'] = [256, ]
+        net_kwargs['residual_filters'] = [[256, 256], ] * 19
+        net_kwargs['policy_filters'] = [256, ]
+        net_scale = 'big'
+    elif scale == 'small':
+        """
+        小规模参数，用来初步求解比较小的问题（如井字棋）
+        """
+        sim_count = 200
+        net_kwargs = {}
+        net_kwargs['conv_filters'] = [256, ]
+        net_kwargs['residual_filters'] = [[256, 256], ] * 7
+        net_kwargs['policy_filters'] = [256, ]
+        net_scale = 'small'
+    return sim_count, net_kwargs, net_scale
 
-    # """
-    # 小规模参数，用来初步求解比较小的问题（如井字棋）
-    # """
-    # train_iterations = 100
-    # train_episodes_per_iteration = 100
-    # batches = 2
-    # batch_size = 64
-    # sim_count = 200
-    # net_kwargs = {}
-    # net_kwargs['conv_filters'] = [256, ]
-    # net_kwargs['residual_filters'] = [[256, 256], ]
-    # net_kwargs['policy_filters'] = [256, ]
-    # net_scale = 'small'
 
-    agent = AlphaZeroAgent(env=env, net_scale=net_scale, kwargs=net_kwargs, sim_count=sim_count,
+def train(cmd, scale='small'):
+    print(sys._getframe().f_code.co_name)
+    train_iterations, train_episodes_per_iteration, \
+    batches, batch_size = train_args(scale)
+    sim_count, net_kwargs, net_scale = net_args(scale)
+    agent = AlphaZeroAgent(env=env, net_scale=net_scale,
+                           kwargs=net_kwargs, sim_count=sim_count,
                            batches=batches, batch_size=batch_size)
-
     for iteration in range(train_iterations):
         # 自我对弈
         dfs_trajectory = []
@@ -336,3 +365,21 @@ def train():
 
         # 演示训练结果
         self_play(env, agent, verbose=True)
+
+
+def play(scale = 'small'):
+    print(sys._getframe().f_code.co_name)
+    train_iterations, train_episodes_per_iteration, \
+    batches, batch_size = train_args(scale)
+    sim_count, net_kwargs, net_scale = net_args(scale)
+    agent = AlphaZeroAgent(env=env, net_scale=net_scale,
+                           kwargs=net_kwargs, sim_count=sim_count,
+                           batches=batches, batch_size=batch_size)
+    from mainwindow import MainWindow
+    from PyQt5.QtWidgets import QApplication
+
+    app = QApplication(sys.argv)
+    mainWindow = MainWindow()
+    mainWindow.widgetBoard.set_agent(agent)
+    mainWindow.show()
+    sys.exit(app.exec_())
