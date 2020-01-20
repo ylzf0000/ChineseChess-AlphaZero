@@ -494,6 +494,7 @@ def board_to_net_input(board, player):
 
 
 class CChessEnv(BoardGameEnv):
+    MAX_DEPTH = 500
 
     def __init__(self, board_shape=(10, 9), render_characters='+ox'):
         super().__init__(board_shape=board_shape,
@@ -501,25 +502,21 @@ class CChessEnv(BoardGameEnv):
                          allow_pass=False)
 
     def reset(self):
-        # super().reset()
         self.board = init_board
         self.player = BLACK
         self.depth = 0
-        return self.board, self.player
+        return self.board, self.player, self.depth
 
     def is_valid(self, state, action):
-        # print(sys._getframe().f_code.co_name)
-        board, player = state
+        board, player, _ = state
         x1, y1, x2, y2 = str_to_mv(labels_mv[action[0]])
         legal = is_legalmove(board, x1, y1, x2, y2, player)
         # if not legal:
         #     print(f'player: {player}, action: {labels_mv[action[0]]}')
-        # return True
         return legal
 
     def get_valid(self, state):
-        # print(sys._getframe().f_code.co_name)
-        board, player = state
+        board, player, _ = state
         mvs = gen_moves(board, player)
         A = np.zeros((2086,), dtype=float)
         for mv in mvs:
@@ -528,30 +525,34 @@ class CChessEnv(BoardGameEnv):
         return A
 
     def has_valid(self, state):
-        # print(sys._getframe().f_code.co_name)
         return True
+
+    def step(self, action):
+        state = (self.board, self.player, self.depth)
+        next_state, reward, done, info = self.next_step(state, action)
+        self.board, self.player, self.depth = next_state
+        return next_state, reward, done, info
 
     def get_winner(self, state):
         # print(sys._getframe().f_code.co_name)
-        board, player = state
+        board, player, depth = state
         if is_mate(board, player):
             return -player
         if not is_jiang_exist(board, player):
             return -player
         if not is_jiang_exist(board, -player):
             return player
-        if self.depth >= 100:
+        if depth >= self.MAX_DEPTH:
             return 0
         return None
 
     def get_next_state(self, state, action):
         # print(sys._getframe().f_code.co_name)
-        board, player = state
+        board, player, depth = state
         board = copy.deepcopy(board)
         x1, y1, x2, y2 = str_to_mv(labels_mv[action[0]])
         move_piece(board, x1, y1, x2, y2)
-        # self.depth += 1
-        return board, -player
+        return board, -player, depth + 1
 
     def render(self, mode='human'):
         s = ''

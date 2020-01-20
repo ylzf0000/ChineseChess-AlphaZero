@@ -3,9 +3,9 @@ import sys
 import math
 import itertools
 import collections
+import time
 import logging
 from tensorflow import keras
-# import keras
 import numpy as np
 import pandas as pd
 import gym
@@ -21,6 +21,21 @@ from boardenv import BLACK, WHITE
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
                     format='%(asctime)s [%(levelname)s] %(message)s')
 env = gym.make('ChineseChess-v0')
+
+
+def measure_time():
+    def wraps(func):
+        def mesure(*args, **kwargs):
+            start = time.time()
+            res = func(*args, **kwargs)
+            end = time.time()
+            # logger.info("function %s use time %s"%(func.__name__,(end-start)))
+            print("function %s use time %s" % (func.__name__, (end - start)))
+            return res
+
+        return mesure
+
+    return wraps
 
 
 def residual(x, filters, kernel_sizes=3, strides=1, activations='relu',
@@ -43,19 +58,22 @@ def residual(x, filters, kernel_sizes=3, strides=1, activations='relu',
 
 
 class AlphaZeroAgent:
-    def __init__(self, env, batches=1, batch_size=4096,
+    def __init__(self, env, net_scale, batches=1, batch_size=4096,
                  kwargs={}, load=None, sim_count=800,
                  c_init=1.25, c_base=19652., prior_exploration_fraction=0.25):
 
         self.prob_size = 2086
-        self.step = 0
 
         self.env = env
         self.board = np.zeros_like(env.board)
         self.batches = batches
         self.batch_size = batch_size
 
-        self.model_filename = './cchess_model.h5'
+        self.net_scale = net_scale
+        if self.net_scale == 'big':
+            self.model_filename = './cchess_model_big.h5'
+        else:
+            self.model_filename = './cchess_model_small.h5'
         if os.path.isfile(self.model_filename):
             self.net = keras.models.load_model(self.model_filename)
         else:
@@ -146,12 +164,11 @@ class AlphaZeroAgent:
         self.policy = {}  # 策略: board -> board
         self.valid = {}  # 有效位置: board -> board
         self.winner = {}  # 赢家: board -> None or int
-        self.step = 0
 
     def decide(self, observation, greedy=False, return_prob=False):
-        print(sys._getframe().f_code.co_name)
+        # print(sys._getframe().f_code.co_name)
         # 计算策略
-        board, player = observation
+        board, player, depth = observation
         canonical_board = np.array(board)
         s = boardenv.strfboard(canonical_board)
         if self.count[s][0] == 0:
@@ -160,9 +177,7 @@ class AlphaZeroAgent:
             if s in self.winner and self.winner[s] is not None:
                 break
             # print('count_sum:', self.count[s].sum())
-            self.step += 1
-            self.search(canonical_board, player, prior_noise=True)
-            self.step -= 1
+            self.search(canonical_board, player, depth, prior_noise=True)
         sum = self.count[s].sum()
         # sum = sum if sum >= 1 else 1
         prob = self.count[s] / sum
@@ -194,23 +209,23 @@ class AlphaZeroAgent:
             # self.net.fit(canonical_boards, [probs, vs], verbose=0)  # 训练
         self.reset_mcts()
 
-    def search(self, board, player, prior_noise=False):  # MCTS 搜索
+    def search(self, board, player, depth, prior_noise=False):  # MCTS 搜索
         # print(sys._getframe().f_code.co_name, self.step)
         # if self.step == 1:
         #     print('?')
         s = boardenv.strfboard(board)
         if s not in self.winner:
-            self.winner[s] = self.env.get_winner((board, player))  # 计算赢家
+            self.winner[s] = self.env.get_winner((board, player, depth))  # 计算赢家
             # self.winner[s] = self.env.get_winner((board, BLACK))  # 计算赢家
         if self.winner[s] is not None:  # 赢家确定的情况
             return self.winner[s]
-        if self.step >= 100:
-            return 0
+        # if depth >= self.env.MAX:
+        #     return 0
         if s not in self.policy:  # 未计算过策略的叶子节点
             # pis, vs = self.net.predict(board[np.newaxis])
             pis, vs = self.net.predict(board_to_net_input(board, player)[np.newaxis])
             pi, v = pis[0], vs[0]
-            valid = self.env.get_valid((board, player))
+            valid = self.env.get_valid((board, player, depth))
             # valid = self.env.get_valid((board, BLACK))
             masked_pi = pi * valid
             total_masked_pi = np.sum(masked_pi)
@@ -245,13 +260,11 @@ class AlphaZeroAgent:
         # print('location:', location)
         # location = np.unravel_index(location_index, board.shape)
 
-        (next_board, next_player), _, _, _ = self.env.next_step(
-            (board, player), np.array(location))
+        (next_board, next_player, next_depth), _, _, _ = self.env.next_step(
+            (board, player, depth), np.array(location))
         # next_canonical_board = next_player * next_board
         next_canonical_board = np.array(next_board)
-        self.step += 1
-        next_v = self.search(next_canonical_board, -player)  # 递归搜索
-        self.step -= 1
+        next_v = self.search(next_canonical_board, -player, depth + 1)  # 递归搜索
         v = next_player * next_v
         self.count[s][location] += 1
         self.q[s][location] += (v - self.q[s][location]) / \
@@ -259,16 +272,18 @@ class AlphaZeroAgent:
         return v
 
 
+@measure_time()
 def self_play(env, agent, return_trajectory=False, verbose=False):
-    print(sys._getframe().f_code.co_name)
+    # print(sys._getframe().f_code.co_name)
     if return_trajectory:
         trajectory = []
     observation = env.reset()
     for step in itertools.count():
-        board, player = observation
+        board, player, depth = observation
         action, prob = agent.decide(observation, return_prob=True)
         if verbose:
-            env.render()
+            # pass
+            # env.render()
             logging.info('第 {} 步：玩家 {}, 动作 {}'.format(step, player,
                                                       cchess.labels_mv[action[0]]))
         observation, winner, done, _ = env.step(action)
@@ -276,9 +291,9 @@ def self_play(env, agent, return_trajectory=False, verbose=False):
             trajectory.append((player, board, prob))
         if done:
             if verbose:
-                env.render()
+                # env.render()
                 # print(boardenv.strfboard(observation[0]))
-                logging.info('赢家 {}'.format(winner))
+                logging.info(f'对弈了{depth + 1}步, 赢家为{"红方" if winner == 1 else "黑方"}')
             break
     if return_trajectory:
         df_trajectory = pd.DataFrame(trajectory,
@@ -291,16 +306,23 @@ def self_play(env, agent, return_trajectory=False, verbose=False):
 
 def train():
     print(sys._getframe().f_code.co_name)
+    """
+    AlphaZero 参数，可用来求解比较大型的问题（如五子棋）
+    """
     train_iterations = 700000  # 训练迭代次数
     train_episodes_per_iteration = 5000  # 每次迭代自我对弈回合数
     batches = 10  # 每回合进行几次批学习
     batch_size = 4096  # 批学习的批大小
-    sim_count = 100  # MCTS需要的计数
+    sim_count = 800  # MCTS需要的计数
     net_kwargs = {}
     net_kwargs['conv_filters'] = [256, ]
-    net_kwargs['residual_filters'] = [[256, 256], ]
+    net_kwargs['residual_filters'] = [[256, 256], ] * 19
     net_kwargs['policy_filters'] = [256, ]
+    net_scale = 'big'
 
+    # """
+    # 小规模参数，用来初步求解比较小的问题（如井字棋）
+    # """
     # train_iterations = 100
     # train_episodes_per_iteration = 100
     # batches = 2
@@ -310,14 +332,16 @@ def train():
     # net_kwargs['conv_filters'] = [256, ]
     # net_kwargs['residual_filters'] = [[256, 256], ]
     # net_kwargs['policy_filters'] = [256, ]
+    # net_scale = 'small'
 
-    agent = AlphaZeroAgent(env=env, kwargs=net_kwargs, sim_count=sim_count,
+    agent = AlphaZeroAgent(env=env, net_scale=net_scale, kwargs=net_kwargs, sim_count=sim_count,
                            batches=batches, batch_size=batch_size)
 
     for iteration in range(train_iterations):
         # 自我对弈
         dfs_trajectory = []
         for episode in range(train_episodes_per_iteration):
+            logging.info(f'训练 {iteration} 回合 {episode}开始')
             df_trajectory = self_play(env, agent,
                                       return_trajectory=True, verbose=True)
             logging.info('训练 {} 回合 {}: 收集到 {} 条经验'.format(
