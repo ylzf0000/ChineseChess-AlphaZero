@@ -90,10 +90,6 @@ class AlphaZeroAgent:
         # 公共部分
         inputs = keras.Input(shape=(10, 9, 15))
         x = inputs
-        # inputs = keras.Input(shape=(9, 10, 14))
-        # x = keras.layers.Reshape((9, 10, 14))(inputs)
-        # inputs = keras.Input(shape=self.board.shape)
-        # x = keras.layers.Reshape(self.board.shape + (1,))(inputs)
         for conv_filter in conv_filters:
             z = keras.layers.Conv2D(conv_filter, 3, padding='same',
                                     kernel_regularizer=regularizer,
@@ -111,17 +107,10 @@ class AlphaZeroAgent:
                                     bias_regularizer=regularizer)(x)
             y = keras.layers.BatchNormalization()(z)
             x = keras.layers.ReLU()(y)
-
-        # t = keras.layers.Reshape([9 * 10 * 2])(x)
-        # probs = keras.layers.Dense(self.prob_size)(t)
-        # logits = keras.layers.Conv2D(1, 3, padding='same',
-        #                              kernel_regularizer=regularizer,
-        #                              bias_regularizer=regularizer)(t)
         logits = keras.layers.Conv2D(1, 3, padding='same',
-                                     kernel_regularizer=regularizer, bias_regularizer=regularizer)(x)
+                                     kernel_regularizer=regularizer,
+                                     bias_regularizer=regularizer)(x)
         flattens = keras.layers.Flatten()(logits)
-        # softmaxs = keras.layers.Softmax(input_shape=(self.prob_size,))(flattens)
-        # probs = keras.layers.Reshape(self.prob_size)(softmaxs)
         softmaxs = keras.layers.Softmax()(flattens)
         probs = keras.layers.Dense(self.prob_size)(softmaxs)
         # probs = keras.layers.Reshape(self.prob_size, )(softmaxs)
@@ -141,8 +130,6 @@ class AlphaZeroAgent:
         def categorical_crossentropy_2d(y_true, y_pred):
             labels = tf.reshape(y_true, [-1, self.prob_size])
             preds = tf.reshape(y_pred, [-1, self.prob_size])
-            # labels = tf.reshape(y_true, [-1, self.board.size])
-            # preds = tf.reshape(y_pred, [-1, self.board.size])
             return keras.losses.categorical_crossentropy(labels, preds)
 
         loss = [categorical_crossentropy_2d, keras.losses.MSE]
@@ -151,15 +138,14 @@ class AlphaZeroAgent:
         return model
 
     def reset_mcts(self):
-        def zero_board_factory():  # 用于构造 default_dict
+        def zero_prob_factory():  # 用于构造 default_dict
             return np.zeros(shape=(self.prob_size,), dtype=float)
             # return np.zeros_like((self.prob_size,), dtype=float)
             # return np.zeros_like(self.board, dtype=float)
 
-        self.q = collections.defaultdict(zero_board_factory)
-        # print(self.prob_size)
+        self.q = collections.defaultdict(zero_prob_factory)
         # q值估计: board -> board
-        self.count = collections.defaultdict(zero_board_factory)
+        self.count = collections.defaultdict(zero_prob_factory)
         # q值计数: board -> board
         self.policy = {}  # 策略: board -> board
         self.valid = {}  # 有效位置: board -> board
@@ -211,22 +197,17 @@ class AlphaZeroAgent:
 
     def search(self, board, player, depth, prior_noise=False):  # MCTS 搜索
         # print(sys._getframe().f_code.co_name, self.step)
-        # if self.step == 1:
-        #     print('?')
         s = boardenv.strfboard(board)
         if s not in self.winner:
             self.winner[s] = self.env.get_winner((board, player, depth))  # 计算赢家
-            # self.winner[s] = self.env.get_winner((board, BLACK))  # 计算赢家
         if self.winner[s] is not None:  # 赢家确定的情况
             return self.winner[s]
-        # if depth >= self.env.MAX:
-        #     return 0
+        if depth >= self.env.MAX_DEPTH:
+            return 0
         if s not in self.policy:  # 未计算过策略的叶子节点
-            # pis, vs = self.net.predict(board[np.newaxis])
             pis, vs = self.net.predict(board_to_net_input(board, player)[np.newaxis])
             pi, v = pis[0], vs[0]
             valid = self.env.get_valid((board, player, depth))
-            # valid = self.env.get_valid((board, BLACK))
             masked_pi = pi * valid
             total_masked_pi = np.sum(masked_pi)
             if total_masked_pi <= 0:  # 所有的有效动作都没有概率，偶尔可能发生
