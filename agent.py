@@ -6,7 +6,6 @@ import collections
 import time
 import logging
 
-
 from tensorflow import keras
 import numpy as np
 import pandas as pd
@@ -199,7 +198,6 @@ class AlphaZeroAgent:
         self.reset_mcts()
 
     def search(self, board, player, depth, prior_noise=False):  # MCTS 搜索
-        # print(sys._getframe().f_code.co_name, self.step)
         s = boardenv.strfboard(board)
         if s not in self.winner:
             self.winner[s] = self.env.get_winner((board, player, depth))  # 计算赢家
@@ -241,9 +239,6 @@ class AlphaZeroAgent:
         location_index = np.nanargmax(ub)
         # 把location_index在(self.prob_size,)中解开得到的索引位置
         location = np.unravel_index(location_index, (self.prob_size,))
-        # print('location:', location)
-        # location = np.unravel_index(location_index, board.shape)
-
         (next_board, next_player, next_depth), _, _, _ = self.env.next_step(
             (board, player, depth), np.array(location))
         # next_canonical_board = next_player * next_board
@@ -251,22 +246,20 @@ class AlphaZeroAgent:
         next_v = self.search(next_canonical_board, next_player, next_depth)  # 递归搜索
         v = next_player * next_v
         self.count[s][location] += 1
-        self.q[s][location] += (v - self.q[s][location]) / \
-                               self.count[s][location]
+        self.q[s][location] += (v - self.q[s][location]) / self.count[s][location]
         return v
 
 
 @measure_time()
 def self_play(env, agent, return_trajectory=False, verbose=False):
     # print(sys._getframe().f_code.co_name)
-    if return_trajectory:
-        trajectory = []
+    trajectory = [] if return_trajectory else None
     observation = env.reset()
+    winner = None
     for step in itertools.count():
         board, player, depth = observation
         action, prob = agent.decide(observation, return_prob=True)
         if verbose:
-            # pass
             # env.render()
             logging.info('第 {} 步：玩家 {}, 动作 {}'.format(step, player,
                                                       cchess.labels_mv[action[0]]))
@@ -276,7 +269,6 @@ def self_play(env, agent, return_trajectory=False, verbose=False):
         if done:
             if verbose:
                 # env.render()
-                # print(boardenv.strfboard(observation[0]))
                 logging.info(f'对弈了{depth + 1}步, 赢家为{"红方" if winner == 1 else "黑方"}')
             break
     if return_trajectory:
@@ -367,7 +359,7 @@ def train(cmd, scale='small'):
         self_play(env, agent, verbose=True)
 
 
-def play(scale = 'small'):
+def play(scale='small'):
     print(sys._getframe().f_code.co_name)
     train_iterations, train_episodes_per_iteration, \
     batches, batch_size = train_args(scale)
